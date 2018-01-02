@@ -1,3 +1,5 @@
+## Remove entries from the enviroment path to Python26 so not to interfere with the proc_env install.
+
 ## Installer (Python 2.7 32bit, P-ROC, SkeletonGame and VPROC controller)
 
 http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
