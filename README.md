@@ -77,8 +77,6 @@ and change it to:
     
     Set Controller = CreateObject("VPROC.Controller")
 
-(For VPX/Visual Pinball 10, you will instead set PROC=1)
-
 12. 'Play' the table in Visual Pinball (F5) to test.
 
 Again, always make sure you're running Visual Pinball as an Administrator otherwise you will get a python error because it won't be able to open the necessary files.  
