@@ -8,6 +8,8 @@ http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
 
 ### Copy this repos files into C:\P-ROC\Tools
 
+https://github.com/horseyhorsey/proc-visual-pinball
+
 ### Installer falling over fix
 
 Ensure PIP is installed:
