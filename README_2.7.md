@@ -2,9 +2,9 @@
 
 ## Installer (Python 2.7 32bit, P-ROC, SkeletonGame and VPROC controller)
 
-http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
+Run this MOcean (https://github.com/mjocean) installer. Next, next, next..
 
-Run MJOcean installer. Next, next, next..
+http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
 
 ### Copy this repos files into C:\P-ROC\Tools
 
