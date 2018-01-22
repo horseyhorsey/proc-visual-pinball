@@ -14,6 +14,8 @@
 ##  See the GitHub page for instructions for use
 ##
 ## changes: 
+##	   22.1.2018:
+##          Added SternSAM
 ##     1.29.2017: (at long last)
 ##          0. The dreaded R6034 runtime error dialog no longer appears
 ##          1. Games can be restarted without quitting visual pinball
@@ -378,26 +380,40 @@ class Controller:
 		if number != None: self.lastSwitch = number
 		self.switch[self.lastSwitch] = value
 
-		if(self.Sys11==True):   
-			if self.lastSwitch < 1:
-				prNumber = self.VPSwitchDedToPRSwitch(abs(self.lastSwitch))
-			elif(self.lastSwitch==82):
-				prNumber = pinproc.decode(self.game.machine_type, 'SF1')
-			elif(self.lastSwitch == 84):
-				prNumber = pinproc.decode(self.game.machine_type, 'SF2')
-			elif(self.lastSwitch < 65):
-				# number = number -1
-				prNumber = (((number/8)+1)*10) + ((number % 8))
-				prNumber = self.VPSwitchMatrixToPRSwitch(prNumber)
-			else: prNumber = 0
-		else:
-			if self.lastSwitch < 10:
-				prNumber = self.VPSwitchDedToPRSwitch(self.lastSwitch)
-			elif self.lastSwitch < 110:
-				prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch)
-			elif self.lastSwitch < 120:
-				prNumber = self.VPSwitchFlipperToPRSwitch(self.lastSwitch)
-			else: prNumber = 0
+        if(self.Sys11==True):   
+            if self.lastSwitch < 1:
+                prNumber = self.VPSwitchDedToPRSwitch(abs(self.lastSwitch))
+            elif(self.lastSwitch==82):
+                prNumber = pinproc.decode(self.game.machine_type, 'SF1')
+            elif(self.lastSwitch == 84):
+                prNumber = pinproc.decode(self.game.machine_type, 'SF2')
+            elif(self.lastSwitch < 65):
+                # number = number -1
+                prNumber = (((number/8)+1)*10) + ((number % 8))
+                prNumber = self.VPSwitchMatrixToPRSwitch(prNumber)
+            else: prNumber = 0
+        #Stern SAM
+        elif(self.game.machine_type == 6):
+            if self.lastSwitch < 1 or self.lastSwitch> 64 and self.lastSwitch < 81:
+                prNumber = self.VPSwitchSternDedToPRSwitch(self.lastSwitch)
+            elif(self.lastSwitch==82):
+                prNumber = pinproc.decode(self.game.machine_type, 'SD11')
+            elif(self.lastSwitch == 84):
+                prNumber = pinproc.decode(self.game.machine_type, 'SD9')
+            elif self.lastSwitch < 65:
+                prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch) 
+            else: prNumber = 0               
+        #Standard Williams & Co
+        else:
+            if self.lastSwitch < 10:
+                prNumber = self.VPSwitchDedToPRSwitch(self.lastSwitch)            
+            elif self.lastSwitch <=0:                
+                prNumber = self.VPSwitchDedToPRSwitch(self.lastSwitch)
+            elif self.lastSwitch < 110:
+                prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch)
+            elif self.lastSwitch < 120:
+                prNumber = self.VPSwitchFlipperToPRSwitch(self.lastSwitch)
+            else: prNumber = 0
 
 
 		if not self.game.switches.has_key(prNumber): return False
@@ -424,6 +440,14 @@ class Controller:
 		vpNumber = ((number / 10)*8) + ((number%10) - 1)
 		vpIndex = vpNumber / 8
 		vpOffset = vpNumber % 8 + 1
+
+		if self.game.machine_type == 6: # SternSAM
+            switch = 'S' + str(number)
+            if number < 10:                
+                switch = 'S0' + str(number)
+            decoded = pinproc.decode(self.game.machine_type,switch)
+            return decoded
+
 		if vpIndex < 10:
 			switch = 'S' + str(vpIndex) + str(vpOffset)
 			return pinproc.decode(self.game.machine_type,switch)
@@ -440,6 +464,26 @@ class Controller:
 		vpNumber = number
 		switch = 'SD' + str(vpNumber)
 		return pinproc.decode(self.game.machine_type, switch)
+
+    def VPSwitchSternDedToPRSwitch(self, number):
+        """ Helper method to find the P-ROC number of a direct switch of SternSAM """
+        dedNumber = 0
+        if number == -3: # Cancel
+            dedNumber = 21
+        elif number == -2: # Down
+            dedNumber = 22
+        elif number == -1: # Up
+            dedNumber = 23
+        elif number == 0: # Enter
+            dedNumber = 24
+        elif number == -7: # Tilt
+            dedNumber = 17
+        elif number == -6: # SlamTilt
+            dedNumber = 18
+
+        #TODO - Coins - Coin1 65, Coin2 66, Coin3 67 - SD1 2 3 4 5
+        switch = 'SD' + str(dedNumber)
+        return pinproc.decode(self.game.machine_type, switch)		
 
 	def Mech(self, number):
 		""" Currently unused.  Game specific mechanism handling will
@@ -591,31 +635,33 @@ class Controller:
 		if(self.Sys11 == True):
 			ACState = pycoils[12+39].curr_state
 
-		for i in range(0,len(vpcoils)):
+        for i in range(0,len(vpcoils)):
 
-			if i < 33:
-				if(self.Sys11!=True):
-					if i<=28: vpcoils[i] = pycoils[i+39].curr_state
-					elif i<=32: vpcoils[i] = False # Unused?
+            if i < 33:
+                if self.game.machine_type == 6: # SternSAM
+                    vpcoils[i] = pycoils[i+31].curr_state
+                elif(self.Sys11!=True):
+                    if i<=28: vpcoils[i] = pycoils[i+39].curr_state
+                    elif i<=32: vpcoils[i] = False # Unused?
+                else: # do the relay lying here...
+                    if i<=8: vpcoils[i] = pycoils[i+39].curr_state and (ACState == False)
+                    elif i<=24: vpcoils[i] = pycoils[i+39].curr_state
+                    elif i<=32: vpcoils[i] = pycoils[i+39].curr_state and (ACState == True)
 
-				else: # do the relay lying here...
-					if i<=8: vpcoils[i] = pycoils[i+39].curr_state and (ACState == False)
-					elif i<=24: vpcoils[i] = pycoils[i+39].curr_state
-					elif i<=32: vpcoils[i] = pycoils[i+39].curr_state and (ACState == True)
+            # Use the machine's Hold coils for the VP flippers
+            # since they stay on until the button is released         
+            if self.game.machine_type != 6: # Don't continue if this is SternSAM
+                elif i == 34: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FURH")].curr_state
+                elif i == 36: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FULH")].curr_state
+                elif i<44:
+                    if self.game.machine_type == pinproc.MachineTypeWPC95:
+                        vpcoils[i] = pycoils[i+31].curr_state
+                    else: vpcoils[i] = pycoils[i+107].curr_state
+                elif i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
+                elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
+                else: vpcoils[i] = pycoils[i+108].curr_state
 
-			# Use the machine's Hold coils for the VP flippers
-			# since they stay on until the button is released
-			elif i == 34: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FURH")].curr_state
-			elif i == 36: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FULH")].curr_state
-			elif i<44:
-				if self.game.machine_type == pinproc.MachineTypeWPC95:
-					vpcoils[i] = pycoils[i+31].curr_state
-				else: vpcoils[i] = pycoils[i+107].curr_state
-			elif i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
-			elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
-			else: vpcoils[i] = pycoils[i+108].curr_state
-
-		return vpcoils      
+        return vpcoils 
 			
 		
 def Register(pyclass=Controller, p_game=None):
