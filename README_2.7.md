@@ -2,11 +2,13 @@
 
 ## Installer (Python 2.7 32bit, P-ROC, SkeletonGame and VPROC controller)
 
+Run this MOcean proc_env_installer (https://github.com/mjocean) installer. Next, next, next..
+
 http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
 
-Run MJOcean installer. Next, next, next..
-
 ### Copy this repos files into C:\P-ROC\Tools
+
+https://github.com/horseyhorsey/proc-visual-pinball
 
 ### Installer falling over fix
 
