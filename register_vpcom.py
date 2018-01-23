@@ -611,11 +611,16 @@ class Controller:
         
     def getLampStates(self):
         """ Gets the current state of the lamps. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         vplamps = [False]*90
 
-        if(self.Sys11 == False):    
+        if self.game.machine_type == 6: # SternSam lamps
+            for i in range(1,81):
+                procnum = 80 + 16 * (7 - ((i - 1) % 8)) + (i - 1) / 8;
+                vplamps[i] = self.game.proc.drivers[procnum].curr_state                   
+        elif(self.Sys11 == False):    
             for i in range(0,64):
                 vpNum = (((i/8)+1)*10) + (i%8) + 1
                 vplamps[vpNum] = self.game.proc.drivers[i+80].curr_state
