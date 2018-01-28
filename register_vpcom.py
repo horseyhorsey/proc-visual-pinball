@@ -16,15 +16,6 @@
 ## changes: 
 ##     22.1.2018:
 ##          Added SternSAM
-##     1.29.2017: (at long last)
-##          0. The dreaded R6034 runtime error dialog no longer appears
-##          1. Games can be restarted without quitting visual pinball
-##          2. Python code changes will be reloaded on next play without quitting/relaunching VP
-##          3. Print commands will no longer kill the application (and you can see them!)
-##              run C:\Python26\Lib\site-packages\win32\lib\win32traceutil.pyc 
-##              that program shows the lost print statements (that don't make it to the log)!
-##          4. Removed calls to deprecated method `self.game.log()` to support games that 
-##              remap log for something else
 ##     12.28.2014:
 ##          0. Re-ordered and deferred imports and changed how config is loaded so that a 
 ##              config.yaml in the game directory will be loaded/used.  Also a procgame
@@ -87,6 +78,12 @@ import win32com.server.util
 from win32com.server.util import wrap, unwrap
 import thread
 import yaml
+
+# not yet...
+# from procgame import *
+
+
+
 try:
     import pygame
     import pygame.locals
@@ -123,13 +120,14 @@ class Controller:
     """Main Visual Pinball COM interface class."""
     _public_methods_ = [    'Run',
                 'Stop',
-                'PrintGlobal']
+                'PrintGlobal',
+                'GetSettings'
+                ]
     #_reg_progid_ = "VPinMAME.Controller" #original supplied name conflicts with the visual pinmame dll
     #_reg_clsid_ = "{F389C8B7-144F-4C63-A2E3-246D168F9D39}" #original supplied class id matches vpinmame.dll
     _reg_progid_ = "VPROC.Controller" #rename to Visual PROC Controller
     _reg_clsid_ = "{196FF002-17F9-4714-8A94-A7BD39AD413B}" #use a unique class guid for Visual PROC Controller
-    _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play
-    _public_attrs_ = [  'Version',
+	_reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play    _public_attrs_ = [  'Version',
                 'GameName', 
                 'Games', 
                 'SplashInfoLine',
@@ -138,9 +136,8 @@ class Controller:
                 'ShowDMDOnly',
                 'HandleMechanics',
                 'HandleKeyboard',
-                'DIP',
+                'DIP',                
                 'Switch',
-                'Switches'
                 'Solenoid',
                 'Solenoids',
                 'Mech',
@@ -148,10 +145,11 @@ class Controller:
                 'ChangedSolenoids',
                 'ChangedGIStrings',
                 'ChangedLamps',
+                'Switches'
                 'GetMech',
                 'Sys11']
                 
-    _readonly_attrs_ = [    'Version', 
+    _readonly_attrs_ = [    'Version',                 
                 'ChangedSolenoids',
                 'ChangedLamps',
                 'ChangedGIStrings',
@@ -164,8 +162,8 @@ class Controller:
     HandleKeyboard = False
     DIP = False
     GameName = "Game name"
-    Solenoid = [True]*128
-    switch = [True]*128
+    solenoid = [True]*128
+    switch = [True]*128    
     lastSwitch = None
     lastSolenoid = None
     Pause = None
@@ -175,13 +173,15 @@ class Controller:
     game = None
     last_lamp_states = []
     last_coil_states = []
-    last_gi_states = []
+    last_gi_states = []    
     
     mechs = {}
 
     HandleMechanics = True
     GameIsDead = False
     ErrorMsg = "Python Failed -- check the log"
+    user_settings = None
+    game_path = None
 
     # Need to overload this method to tell that we support IID_IServerWithEvents
     def _query_interface_(self, iid):
@@ -192,33 +192,29 @@ class Controller:
     def PrintGlobal(self):
         """ Unused by pyprocgame. """
         return True
-    
-    def __checkBridgeOK(self):
-        if(self.GameIsDead):
-            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
-
-
+        
     def Run(self, extra_arg=None):
         """ Figure out which game to play based on the contents of the 
         vp_game_map_file. """
-        import win32traceutil
+
         import config
 
         if(extra_arg is not None):
             logging.getLogger('vpcom').info("Run received extra arg!?")
             logging.getLogger('vpcom').info("Arg was {0}".format(extra_arg))
 
-        vp_game_map_file = config.value_for_key_path(keypath='vp_game_map_file', default='/.')
+        vp_game_map_file = config.value_for_key_path(keypath='vp_game_map_file', default='/.')            
         vp_game_map = yaml.load(open(vp_game_map_file, 'r'))
         game_class = vp_game_map[self.GameName]['kls']
-        game_path = vp_game_map[self.GameName]['path']
+        self.game_path = vp_game_map[self.GameName]['path']
         yamlpath = vp_game_map[self.GameName]['yaml']
-        logging.getLogger('vpcom').info("S11 is ..." + str(self.Sys11))
+        logging.getLogger('vpcom').info("S11 is ..." + str(self.Sys11))        
+            #Load the users settings file
 
         try:
             # switch to the directory of the current game
             curr_file_path = os.path.dirname(os.path.abspath( __file__ ))
-            newpath = os.path.realpath(curr_file_path + game_path)
+            newpath = os.path.realpath(curr_file_path + self.game_path)
             os.chdir(newpath)
 
             # add the path to the system path; this lets game relative procgames
@@ -233,15 +229,16 @@ class Controller:
             from procgame import *
 
             # find the class of the game instance
-            klass = util.get_class(game_class,game_path)
+            klass = util.get_class(game_class,self.game_path)
             self.game = klass()
 
             self.game.yamlpath = yamlpath
-            logging.getLogger('vpcom').info("GameName: " + str(self.GameName))
-            logging.getLogger('vpcom').info("SplashInfoLine: " + str(self.SplashInfoLine))
+            self.game.log("GameName: " + str(self.GameName))
+            self.game.log("SplashInfoLine: " + str(self.SplashInfoLine))
+
+            self.user_settings = self.load_settings(newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml')
 
         except Exception, e:
-            self.GameIsDead = True
             import traceback
             exc_type, exc_value, exc_traceback = sys.exc_info()
 
@@ -257,20 +254,26 @@ class Controller:
             if(len(formatted_lines) > 2):
                 self.ErrorMsg += "\n" + formatted_lines[-3] + "\n" + formatted_lines[-2] + "\n" + formatted_lines[-1]
             raise
+
+
         try:
             if(self.game.machine_type is None):
                 game_config = yaml.load(open(yamlpath, 'r'))
                 self.game.machine_type = game_config['PRGame']['machineType']
 
+
             self.last_lamp_states = self.getLampStates()
             self.last_coil_states = self.getCoilStates()
+            #self.game.setup()
+            #every game has an init class, so run that instead of the setup call
+            #init is already called automatically above so we don't need to call it twice
+            #self.game.__init__()
 
             # Initialize switches.  Call SetSwitch so it can invert
             # normally closed switches as appropriate.
             for i in range(0,120):
                 self.SetSwitch(i, False)
         except Exception, e:
-            self.GameIsDead = True
             import traceback
             exc_type, exc_value, exc_traceback = sys.exc_info()
 
@@ -293,10 +296,8 @@ class Controller:
         return True
 
     def RunGame(self):
-        if(self.GameIsDead):
-            return
         try:
-            self.game.run_loop(.0001)
+            self.game.run_loop()
         except Exception, e:
             import traceback
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -319,14 +320,10 @@ class Controller:
             #raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
             self.GameIsDead = True
-            if(self.game is not None):
-                self.game.end_run_loop()
-            os._exit(1)
+            #os._exit(1)
         
     def Stop(self):
-        if(self.game is not None):
-            self.game.end_run_loop()
-        os._exit(1)
+        self.game.end_run_loop()
         pygame.display.quit()
         pygame.font.quit()
         pygame.quit()
@@ -346,40 +343,45 @@ class Controller:
         
     def Switch(self, number):
         """ Return the current value of the requested switch. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         if(self.Sys11 == True) and (number != None):
             number = ((number/8)+1)*10 + number % 8
             
         if number != None: self.lastSwitch = number
+
         return self.switch[self.lastSwitch]
+
     def Solenoid(self, number):
         """ Return the current value of the requested solenoid. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         if number != None: self.lastSolenoid = number
-        return self.solenoid[self.lastSolenoid]    
-    def Solenoids(self):        
-        """ Returns coil states from P-ROC """
-        self.__checkBridgeOK()
+        return self.solenoid[self.lastSolenoid]         
+
+    def Solenoids(self):
+        """ Return the current value of the requested solenoid. """
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
                     
         return self.getCoilStates()
                 
     def SetSwitch(self, number, value):
         """ Set the value of the requested switch. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         # All of the 'None' logic is error handling for unexpected
         # cases when None is passed in as a parameter.  This seems to
         # only happen with the original VP scripts when the switch data
         # is corrupted by making COM calls into this object.  This
-        # appears to be a pywin32 bug.
-
+        # appears to be a pywin32 bug.        
         if value == None: return self.Switch(number)
         if number == None: return self.Switch(number)
-        if number != None: 
-            self.lastSwitch = number
-            self.switch[self.lastSwitch] = value
+        if number != None: self.lastSwitch = number
+        self.switch[self.lastSwitch] = value
 
         if(self.Sys11==True):   
             if self.lastSwitch < 1:
@@ -394,27 +396,26 @@ class Controller:
                 prNumber = self.VPSwitchMatrixToPRSwitch(prNumber)
             else: prNumber = 0
         #Stern SAM
-        elif(self.game.machine_type == 6):
-            if self.lastSwitch < 1 or self.lastSwitch> 64 and self.lastSwitch < 81:
-                prNumber = self.VPSwitchSternDedToPRSwitch(self.lastSwitch)
-            elif(self.lastSwitch==82):
+        elif(self.game.machine_type == 6):                
+            if(self.lastSwitch==82): # FlipR
                 prNumber = pinproc.decode(self.game.machine_type, 'SD11')
-            elif(self.lastSwitch == 84):
-                prNumber = pinproc.decode(self.game.machine_type, 'SD9')
+            elif(self.lastSwitch == 84):  
+                prNumber = pinproc.decode(self.game.machine_type, 'SD9')  #FlipL
+            elif self.lastSwitch < 1 or self.lastSwitch> 64 and self.lastSwitch < 81:
+                prNumber = self.VPSwitchSternDedToPRSwitch(self.lastSwitch)               
             elif self.lastSwitch < 65:
-                prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch) 
+                prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch)                 
             else: prNumber = 0               
         #Standard Williams & Co
         else:
             if self.lastSwitch < 10:
                 prNumber = self.VPSwitchDedToPRSwitch(self.lastSwitch)            
-            elif self.lastSwitch <=0:                
-                prNumber = self.VPSwitchDedToPRSwitch(self.lastSwitch)
             elif self.lastSwitch < 110:
                 prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch)
             elif self.lastSwitch < 120:
                 prNumber = self.VPSwitchFlipperToPRSwitch(self.lastSwitch)
             else: prNumber = 0
+
 
         if not self.game.switches.has_key(prNumber): return False
         if self.game.switches[prNumber].type == 'NC': 
@@ -441,7 +442,7 @@ class Controller:
         vpIndex = vpNumber / 8
         vpOffset = vpNumber % 8 + 1
 
-        if self.game.machine_type == 6: # SternSAM
+        if self.game.machine_type == 6:
             switch = 'S' + str(number)
             if number < 10:                
                 switch = 'S0' + str(number)
@@ -483,24 +484,27 @@ class Controller:
 
         #TODO - Coins - Coin1 65, Coin2 66, Coin3 67 - SD1 2 3 4 5
         switch = 'SD' + str(dedNumber)
-        return pinproc.decode(self.game.machine_type, switch)       
+        return pinproc.decode(self.game.machine_type, switch)
 
     def Mech(self, number):
         """ Currently unused.  Game specific mechanism handling will
         be called through this method. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
         return True
 
     def SetMech(self, number):
         """ Currently unused.  Game specific mechanism handling will
         be called through this method. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
         return True
 
     def SetMech(self, number, args):
         """ Currently unused.  Game specific mechanism handling will
         be called through this method. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
         
         if(self.GameName=="t2_l8"):
             self.SetSwitch(33, True) # gun is home...
@@ -520,7 +524,8 @@ class Controller:
     def GetMech(self, number):
         """ Currently unused.  Game specific mechanism handling will
         be called through this method. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         if(self.GameName=="t2_l8"):
             # if the coil associated with this mech is on
@@ -549,7 +554,8 @@ class Controller:
 
     def ChangedSolenoids(self):
         """ Return a list of changed coils. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         coils = self.getCoilStates()
         changedCoils = []
@@ -568,7 +574,8 @@ class Controller:
         
     def ChangedLamps(self):
         """ Return a list of changed lamps. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         lamps = self.getLampStates()
         changedLamps = []
@@ -583,7 +590,8 @@ class Controller:
 
     def ChangedGIStrings(self):
         """ Return a list of changed GI strings. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         gi = self.getGIStates()
         changedGI = []
@@ -598,7 +606,8 @@ class Controller:
             
     def getGIStates(self):
         """ Gets the current state of the GI strings. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         vpgi = [False]*5
     
@@ -632,7 +641,8 @@ class Controller:
         
     def getCoilStates(self):
         """ Gets the current state of the coils. """
-        self.__checkBridgeOK()
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
         pycoils = self.game.proc.drivers
         vpcoils = [False]*64
@@ -643,7 +653,16 @@ class Controller:
         for i in range(0,len(vpcoils)):
 
             if i < 33:
-                if self.game.machine_type == 6: # SternSAM
+                if self.game.machine_type == 6:    # Stern SAM                
+                    # if i == 15:                         
+                    #      vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLM")].curr_state
+                    # #     vpcoils[48] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
+                    # if i == 16: 
+                    # #    pass
+                    #     vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLRM")].curr_state
+                    # #     vpcoils[46] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
+                    # #else:
+                    # else:
                     vpcoils[i] = pycoils[i+31].curr_state
                 elif(self.Sys11!=True):
                     if i<=28: vpcoils[i] = pycoils[i+39].curr_state
@@ -655,7 +674,7 @@ class Controller:
 
             # Use the machine's Hold coils for the VP flippers
             # since they stay on until the button is released         
-            if self.game.machine_type != 6: # Don't continue if this is SternSAM
+            elif self.game.machine_type != 6: #
                 if i == 34: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FURH")].curr_state
                 elif i == 36: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FULH")].curr_state
                 elif i<44:
@@ -665,9 +684,79 @@ class Controller:
                 elif i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
                 elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
                 else: vpcoils[i] = pycoils[i+108].curr_state
+            else:
+                pass
+                #if i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
+                #elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
 
-        return vpcoils 
-            
+
+        return vpcoils
+
+    # Add "stuff" to adjust Visual pinball settings, physics etc. 
+    # Best used to save settings from a service mode then call from VP script on load
+    #    to change table settings without need for script editing
+    #game_path
+
+    def GetSettings(self,section,key, gameName = ""):
+        """ Returns a settings value from PROC the saved User settings """        
+
+        if self.user_settings is None:
+            if self.game_path is None:
+                import config
+                vp_game_map_file = config.value_for_key_path(keypath='vp_game_map_file', default='/.')            
+                vp_game_map = yaml.load(open(vp_game_map_file, 'r'))
+                self.game_path = vp_game_map[gameName]['path']
+
+                # switch to the directory of the current game
+                curr_file_path = os.path.dirname(os.path.abspath( __file__ ))
+                newpath = os.path.realpath(curr_file_path + self.game_path)
+                os.chdir(newpath)
+
+                # add the path to the system path; this lets game relative procgames
+                # be found if needed
+                sys.path.insert(0, newpath)                
+
+            self.user_settings = self.load_settings(newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml')
+        return self.user_settings[section][key] 
+
+    def load_settings(self, template_filename, user_filename):
+        """Loads the YAML game settings configuration file.  The game settings
+        describe operator configuration options, such as balls per game and
+        replay levels.
+        The *template_filename* provides default values for the game;
+        *user_filename* contains the values set by the user.
+        
+        See also: :meth:`save_settings`
+        """        
+        self.settings = yaml.load(open(template_filename, 'r'))
+        user_settings = {}
+        #print template_filename
+        if os.path.exists(user_filename):
+            user_settings = yaml.load(open(user_filename, 'r'))
+        
+        for section in self.settings:
+            for item in self.settings[section]:
+                if not section in user_settings:
+                    user_settings[section] = {}
+                    if 'default' in self.settings[section][item]:
+                        user_settings[section][item] = self.settings[section][item]['default']
+                    else:
+                        user_settings[section][item] = self.settings[section][item]['options'][0]
+                elif not item in user_settings[section]:
+                    if 'default' in self.settings[section][item]:
+                        user_settings[section][item] = self.settings[section][item]['default']
+                    else:
+                        user_settings[section][item] = self.settings[section][item]['options'][0]
+        return user_settings
+
+    def save_settings(self, filename):
+        """Writes the game settings to *filename*.  See :meth:`load_settings`."""
+        if os.path.exists(filename):
+            os.remove(filename)
+        #stream = file(filename, 'w')
+        stream = open(filename, 'w')
+        yaml.dump(self.user_settings, stream)       
+        file.close(stream)            
         
 def Register(pyclass=Controller, p_game=None):
     """ Registration code for the Visual Pinball COM interface for pyprocgame."""
