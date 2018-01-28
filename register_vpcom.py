@@ -127,7 +127,8 @@ class Controller:
     #_reg_clsid_ = "{F389C8B7-144F-4C63-A2E3-246D168F9D39}" #original supplied class id matches vpinmame.dll
     _reg_progid_ = "VPROC.Controller" #rename to Visual PROC Controller
     _reg_clsid_ = "{196FF002-17F9-4714-8A94-A7BD39AD413B}" #use a unique class guid for Visual PROC Controller
-	_reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play    _public_attrs_ = [  'Version',
+    _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play    
+    _public_attrs_ = [  'Version',
                 'GameName', 
                 'Games', 
                 'SplashInfoLine',
