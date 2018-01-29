@@ -8,6 +8,7 @@ http://skeletongame.com/files/proc_env_installer_wHD_1.27.exe
 
 Courtesy of (https://github.com/mjocean) 
 
+### If you get extreme errors whilst running the installer: Search for libiconv-2.dll and you'll find two versions of it - one in syswow64, which needs to be renamed during the install.
 
 
 # 2. Copy this repos files into C:\P-ROC\Tools 
