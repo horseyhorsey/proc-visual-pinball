@@ -148,13 +148,19 @@ class Controller:
                 'ChangedLamps',
                 'Switches'
                 'GetMech',
-                'Sys11']
+                'Sys11',
+				'RawDmdColoredPixels',
+                'RawDmdWidth',
+                'RawDmdHeight']
                 
     _readonly_attrs_ = [    'Version',                 
                 'ChangedSolenoids',
                 'ChangedLamps',
                 'ChangedGIStrings',
-                'GetMech']
+                'GetMech',
+                'RawDmdColoredPixels',
+                'RawDmdWidth',
+                'RawDmdHeight']
     
     Version = "22222222"
     ShowTitle = None
@@ -693,6 +699,23 @@ class Controller:
 
         return vpcoils
 
+    def RawDmdWidth(self):
+    	logging.getLogger('vpcom').info("Getting DMD width")
+    	return self.game.dmd.width
+
+    def RawDmdHeight(self):
+    	logging.getLogger('vpcom').info("Getting DMD height")
+    	return self.game.dmd.height
+
+    def RawDmdColoredPixels(self):
+        """ Gets the pixels from SDL """
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
+        #logging.getLogger('vpcom').info("Query Texture")		
+        #text = self.game.desktop.query_texture(self.game.dmd.width, self.game.dmd.height)
+        #logging.getLogger('vpcom').info("{}".format(text))		
+        return None
+
     # Add "stuff" to adjust Visual pinball settings, physics etc. 
     # Best used to save settings from a service mode then call from VP script on load
     #    to change table settings without need for script editing
@@ -700,6 +723,11 @@ class Controller:
 
     def GetSettings(self,section,key, gameName = ""):
         """ Returns a settings value from PROC the saved User settings """        
+
+        _settingsPath = newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml'
+
+        if not os.path.exists(user_filename):           
+            return None
 
         if self.user_settings is None:
             if self.game_path is None:
@@ -717,7 +745,7 @@ class Controller:
                 # be found if needed
                 sys.path.insert(0, newpath)                
 
-            self.user_settings = self.load_settings(newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml')
+            self.user_settings = self.load_settings(_settingsPah)
         return self.user_settings[section][key] 
 
     def load_settings(self, template_filename, user_filename):
@@ -729,6 +757,9 @@ class Controller:
         
         See also: :meth:`save_settings`
         """        
+        if not os.path.exists(template_filename):           
+            return None
+
         self.settings = yaml.load(open(template_filename, 'r'))
         user_settings = {}
         #print template_filename
