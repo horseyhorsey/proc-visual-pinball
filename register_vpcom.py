@@ -149,7 +149,7 @@ class Controller:
                 'Switches'
                 'GetMech',
                 'Sys11',
-				'RawDmdColoredPixels',
+                'RawDmdColoredPixels',
                 'RawDmdWidth',
                 'RawDmdHeight']
                 
@@ -700,20 +700,20 @@ class Controller:
         return vpcoils
 
     def RawDmdWidth(self):
-    	logging.getLogger('vpcom').info("Getting DMD width")
-    	return self.game.dmd.width
+        logging.getLogger('vpcom').info("Getting DMD width")
+        return self.game.dmd.width
 
     def RawDmdHeight(self):
-    	logging.getLogger('vpcom').info("Getting DMD height")
-    	return self.game.dmd.height
+        logging.getLogger('vpcom').info("Getting DMD height")
+        return self.game.dmd.height
 
     def RawDmdColoredPixels(self):
         """ Gets the pixels from SDL """
         if(self.GameIsDead):
             raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
-        #logging.getLogger('vpcom').info("Query Texture")		
+        #logging.getLogger('vpcom').info("Query Texture")       
         #text = self.game.desktop.query_texture(self.game.dmd.width, self.game.dmd.height)
-        #logging.getLogger('vpcom').info("{}".format(text))		
+        #logging.getLogger('vpcom').info("{}".format(text))     
         return None
 
     # Add "stuff" to adjust Visual pinball settings, physics etc. 
@@ -723,11 +723,6 @@ class Controller:
 
     def GetSettings(self,section,key, gameName = ""):
         """ Returns a settings value from PROC the saved User settings """        
-
-        _settingsPath = newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml'
-
-        if not os.path.exists(user_filename):           
-            return None
 
         if self.user_settings is None:
             if self.game_path is None:
@@ -745,7 +740,7 @@ class Controller:
                 # be found if needed
                 sys.path.insert(0, newpath)                
 
-            self.user_settings = self.load_settings(_settingsPah)
+            self.user_settings = self.load_settings(newpath + '/config/game_default_settings.yaml', newpath + '/config/game_user_settings.yaml')
         return self.user_settings[section][key] 
 
     def load_settings(self, template_filename, user_filename):
