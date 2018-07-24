@@ -7,6 +7,7 @@ import sys
 pip.main(['install', 'pyyaml'])
 pip.main(['install', 'pygame'])
 pip.main(['install', 'pillow'])
+pip.main(['install', 'requests'])
 os.system('python -m pip install pypiwin32')
 
 vpComFile = 'register_vpcom.py'
