@@ -32,8 +32,6 @@ This will register the vp_com that was copied into Tools for you. For success lo
 
 	python C:\Python27\Scripts\pywin32_postinstall.py -install
 
-
-
 # 4. SDLTTF
 Copy the SDLTff that works with Visual Pinball into 'P-ROC\DLLS' - ##### This DLL folder is in the files you downloaded and put into the tools folder
 
@@ -41,3 +39,28 @@ Copy the SDLTff that works with Visual Pinball into 'P-ROC\DLLS' - ##### This DL
 Edit the config file in "C:\Users\%UserName%\.pyprocgame" and add entry for the vp game map location:
 
 	vp_game_map_file: c:\P-ROC\shared\vp_game_map.yaml  # relevant for Visual Pinball (only)
+	
+	
+## When trying to run Visual Pinball after these steps and errors like "Controller not found"
+
+	Open command prompt with Administrator
+	
+	python C:\Python27\Scripts\pywin32_postinstall.py -install
+	
+	On success you will see the following:
+	
+		Copied pythoncom27.dll to C:\WINDOWS\SysWOW64\pythoncom27.dll
+		Copied pythoncomloader27.dll to C:\WINDOWS\SysWOW64\pythoncomloader27.dll
+		Copied pywintypes27.dll to C:\WINDOWS\SysWOW64\pywintypes27.dll
+		Registered: Python.Interpreter
+		Registered: Python.Dictionary
+		Registered: Python
+		-> Software\Python\PythonCore\2.7\Help[None]=None
+		-> Software\Python\PythonCore\2.7\Help\Pythonwin Reference[None]='C:\\Python27\\Lib\\site-packages\\PyWin32.chm'
+		Pythonwin has been registered in context menu
+		Shortcut for Pythonwin created
+		Shortcut to documentation created
+		The pywin32 extensions were successfully installed.
+		
+	You don't need to re-register the controller this should be all it needs.
+	
