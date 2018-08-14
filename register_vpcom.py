@@ -14,7 +14,24 @@
 ##  See the GitHub page for instructions for use
 ##
 ## changes: 
-##     22.1.2018:
+##	   8.14.2018
+##		    Added PDB machine_type and VP RGB:
+##              0: In VP set Flipper SolCallBack to the Hold coil number. Ie. SolCallBack(32) would usually be 33 for hold.
+##              1: PDLeds should have tags. 'vp, 11', 'vp, 12'. The VP lamp number maps to the PDB address.
+##              2: Dedicated switches 0-32, other switches 32 >
+##              3: Use PDB.vbs in VP scripts and updated core.vbs with added ChangedPDLeds.
+##              4a: Leds can be mapped by adding VP lamps to a collection and using VpmMapLights in script.
+##              4c: Assign the lamp number in each lamps timer interval box.
+##              4c:
+##                    vpmMapLights AllLamps
+##                    Const UseLamps = False
+##                    Const UsePdbLeds = True
+##                    Set LampCallback    = GetRef("UpdateLamps")
+##                    Set PDLedCallback    = GetRef("UpdateLeds")
+##                    Sub UpdateLamps : End Sub
+##                    Sub UpdateLeds  : End Sub
+##
+##     1.22.2018:
 ##          Added SternSAM
 ##     12.28.2014:
 ##          0. Re-ordered and deferred imports and changed how config is loaded so that a 
@@ -121,13 +138,14 @@ class Controller:
     _public_methods_ = [    'Run',
                 'Stop',
                 'PrintGlobal',
-                'GetSettings'
+                'GetSettings',
+                'ChangedPDLeds'
                 ]
     #_reg_progid_ = "VPinMAME.Controller" #original supplied name conflicts with the visual pinmame dll
     #_reg_clsid_ = "{F389C8B7-144F-4C63-A2E3-246D168F9D39}" #original supplied class id matches vpinmame.dll
     _reg_progid_ = "VPROC.Controller" #rename to Visual PROC Controller
     _reg_clsid_ = "{196FF002-17F9-4714-8A94-A7BD39AD413B}" #use a unique class guid for Visual PROC Controller
-    _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play    
+    ##_reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER # LocalSever (no InProc) only means game reloads entirely on next play    
     _public_attrs_ = [  'Version',
                 'GameName', 
                 'Games', 
@@ -267,10 +285,11 @@ class Controller:
             if(self.game.machine_type is None):
                 game_config = yaml.load(open(yamlpath, 'r'))
                 self.game.machine_type = game_config['PRGame']['machineType']
-
-
+            
             self.last_lamp_states = self.getLampStates()
             self.last_coil_states = self.getCoilStates()
+            self.last_led_states = self.getLedStates()
+            
             #self.game.setup()
             #every game has an init class, so run that instead of the setup call
             #init is already called automatically above so we don't need to call it twice
@@ -412,7 +431,10 @@ class Controller:
                 prNumber = self.VPSwitchSternDedToPRSwitch(self.lastSwitch)               
             elif self.lastSwitch < 65:
                 prNumber = self.VPSwitchMatrixToPRSwitch(self.lastSwitch)                 
-            else: prNumber = 0               
+            else: prNumber = 0      
+        # PDB   
+        elif (self.game.machine_type == 7):
+			prNumber = self.lastSwitch
         #Standard Williams & Co
         else:
             if self.lastSwitch < 10:
@@ -538,8 +560,8 @@ class Controller:
             # if the coil associated with this mech is on
             if(self.game.proc.drivers[pinproc.decode(self.game.machine_type, "C11")].curr_state == True) :
                 # check the direction
-                self.game.logging_enabled = True
-                logging.getLogger('vpcom').info("Coil # %d " % number )
+                #self.game.logging_enabled = True
+                #logging.getLogger('vpcom').info("Coil # %d " % number )
                 if(self.direction == 1):
                     self.pos = self.pos + .5
                     if(self.pos >= 41):
@@ -563,7 +585,6 @@ class Controller:
         """ Return a list of changed coils. """
         if(self.GameIsDead):
             raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
-
         coils = self.getCoilStates()
         changedCoils = []
         
@@ -575,7 +596,7 @@ class Controller:
                         changedCoils += [(0,True)]
                         already = True
                     changedCoils += [(i,coils[i])]
-                
+                        
         self.last_coil_states = coils
         return changedCoils
         
@@ -589,11 +610,27 @@ class Controller:
         
         if len(self.last_lamp_states) > 0:
             for i in range(0,len(lamps)):
-                if lamps[i] != self.last_lamp_states[i]:
-                    changedLamps += [(i,lamps[i])]
+                if lamps[i] != self.last_lamp_states[i]:                    
+                    changedLamps += [(i, lamps[i])]                    
                 
         self.last_lamp_states = lamps
         return changedLamps
+
+    def ChangedPDLeds(self):
+        """ Return a list of changed proc pd leds. """
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
+        
+        leds = self.getLedStates()
+        changedLeds = []
+        
+        if len(self.last_led_states) > 0:
+            for i in range(0,len(leds)):
+                if leds[i] != self.last_led_states[i]:                    
+                    changedLeds += [(i, leds[i])]                    
+                
+        self.last_led_states = leds
+        return changedLeds            
 
     def ChangedGIStrings(self):
         """ Return a list of changed GI strings. """
@@ -624,6 +661,22 @@ class Controller:
             vpgi[i] = self.game.proc.drivers[prNumber].curr_state
             
         return vpgi
+
+    def getLedStates(self):
+        """ Gets the current state of the lamps. """
+        if(self.GameIsDead):
+            raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
+
+        vplamps = [0]*90
+ 
+        # Get items tagged with VP and the next in list should be the switch number
+        if self.game.machine_type == 7:   
+            for led in self.game.leds.items_tagged('vp'):                             
+                color = led.current_color
+                color_decimal = color[2] * 65536 + color[1] * 256 + color[0]
+                vpnum = int(led.tags[1])
+                vplamps[vpnum] = color_decimal              
+        return vplamps        
         
     def getLampStates(self):
         """ Gets the current state of the lamps. """
@@ -635,7 +688,7 @@ class Controller:
         if self.game.machine_type == 6: # SternSam lamps
             for i in range(1,81):
                 procnum = 80 + 16 * (7 - ((i - 1) % 8)) + (i - 1) / 8;
-                vplamps[i] = self.game.proc.drivers[procnum].curr_state                   
+                vplamps[i] = self.game.proc.drivers[procnum].curr_state        
         elif(self.Sys11 == False):    
             for i in range(0,64):
                 vpNum = (((i/8)+1)*10) + (i%8) + 1
@@ -659,8 +712,12 @@ class Controller:
 
         for i in range(0,len(vpcoils)):
 
-            if i < 33:
-                if self.game.machine_type == 6:    # Stern SAM                
+            # PDB coils
+            if self.game.machine_type == 7:
+                    vpcoils[i] = pycoils[i].curr_state
+            elif i < 33:
+                # Stern SAM
+                if self.game.machine_type == 6:
                     # if i == 15:                         
                     #      vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLM")].curr_state
                     # #     vpcoils[48] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
@@ -670,15 +727,14 @@ class Controller:
                     # #     vpcoils[46] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
                     # #else:
                     # else:
-                    vpcoils[i] = pycoils[i+31].curr_state
+                    vpcoils[i] = pycoils[i+31].curr_state                
                 elif(self.Sys11!=True):
                     if i<=28: vpcoils[i] = pycoils[i+39].curr_state
                     elif i<=32: vpcoils[i] = False # Unused?
                 else: # do the relay lying here...
                     if i<=8: vpcoils[i] = pycoils[i+39].curr_state and (ACState == False)
                     elif i<=24: vpcoils[i] = pycoils[i+39].curr_state
-                    elif i<=32: vpcoils[i] = pycoils[i+39].curr_state and (ACState == True)
-
+                    elif i<=32: vpcoils[i] = pycoils[i+39].curr_state and (ACState == True)                
             # Use the machine's Hold coils for the VP flippers
             # since they stay on until the button is released         
             elif self.game.machine_type != 6: #
@@ -691,8 +747,6 @@ class Controller:
                 elif i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLRH")].curr_state
                 elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
                 else: vpcoils[i] = pycoils[i+108].curr_state
-            else:
-                pass
                 #if i == 46: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
                 #elif i == 48: vpcoils[i] = pycoils[pinproc.decode(self.game.machine_type, "FLLH")].curr_state
 
