@@ -667,7 +667,7 @@ class Controller:
         if(self.GameIsDead):
             raise COMException(desc=self.ErrorMsg,scode=winerror.E_FAIL)
 
-        vplamps = [0]*90
+        vplamps = [0]*110
  
         # Get items tagged with VP and the next in list should be the switch number
         if self.game.machine_type == 7:   
