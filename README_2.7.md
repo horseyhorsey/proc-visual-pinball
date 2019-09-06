@@ -1,7 +1,7 @@
 # Visual Pinball - PROC - Setup
 > Tested Win10 x64
 
-#### Preequisties 
+#### Prerequisites 
 
 Existing Python 2.6 or higher installations
 
